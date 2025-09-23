@@ -32,15 +32,80 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	log "k8s.io/klog/v2"
 	"github.com/bufbuild/connect-go"
+	"bytes"
+    "encoding/json"
 )
+
+// 환경변수
+type saTokenInterceptor struct{
+    openApiHost  string
+    saNamespace  string
+    saName       string
+}
+
+// open-api-k8s API 호출로 Kubeapps admin sa token 발급받기
+func getSATokenFromAPI(openApiHost, saNamespace, saName string) (string, error) {
+    url := fmt.Sprintf("http://%s/k8s/api/v1/clusters/default/namespaces/%s/serviceaccounts/%s/token", openApiHost, saNamespace, saName)
+
+    requestBody := map[string]interface{}{
+        "apiVersion": "authentication.k8s.io/v1",
+        "kind":       "TokenRequest",
+        "metadata": map[string]string{
+            "name":      saName,
+            "namespace": saNamespace,
+        },
+        "spec": map[string]interface{}{
+            "audiences":         []string{"kubernetes"},
+            "expirationSeconds": 3600,
+        },
+    }
+
+	// JSON 형식으로 변환
+    bodyBytes, err := json.Marshal(requestBody)
+    if err != nil {
+        return "", err
+    }
+
+    // HTTP POST 요청 전송
+    resp, err := http.Post(url, "application/json", bytes.NewBuffer(bodyBytes))
+    if err != nil {
+        return "", err
+    }
+
+	// 함수 종료 시 응답 Body 닫기
+    defer resp.Body.Close()
+
+	// HTTP 응답 상태 코드 확인
+    if resp.StatusCode != http.StatusOK {
+        return "", fmt.Errorf("failed to get SA token, status: %s", resp.Status)
+    }
+
+	// 응답 JSON 파싱용 구조체 정의
+	var response struct {
+		Status struct {
+			Token string `json:"token"`
+		} `json:"status"`
+	}
+
+    // 응답 body를 JSON으로 디코딩 
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return "", err
+	}
+
+	// 발급받은 토큰 반환
+	return response.Status.Token, nil
+
+}
+
+
 
 // sa token 인터셉터 추가
 // updated at: 250923
 // updated by: 이호형
 // Interceptor struct 방식으로 변경
-const adminSAToken = "eyJhbGciOiJSUzI1NiIsImtpZCI6ImplcktWSnRndDc3Y2l1VXUwSVk5SVBKMXBaMlRIdjRzanRkYTM5V3QxZTQifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJrdWJlYXBwcyIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VjcmV0Lm5hbWUiOiJrdWJlYXBwcy1hZG1pbi10b2tlbiIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50Lm5hbWUiOiJrdWJlYXBwcy1hZG1pbiIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50LnVpZCI6IjAwZTA4Zjc1LTYxYjUtNDUxMy1iOGNlLWU3YjlhYTc2MTIyMiIsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDprdWJlYXBwczprdWJlYXBwcy1hZG1pbiJ9.cTyPEiMF5tF7F_3PW9r5FoTqChHKIONS3GTwKlMCBcXu2ePRS54-5wnZebAQmpEvsWNoqU8K_qSFK_609B90St-K2bZTReQXLe10FigtDXURXmNaPiLnY-ItDccEVxUJ4wKDhAQ731U9_c_Xs4alghB2RfhMELo8P_6DGH92RK6eMtrELyMvayQ3b-HDzscNTaixJHAwf59_wHNR2xjibWZXvG_LK3sVo5r7p19crMASERH1QNjl7CSMBJLYgOtQc6817uGZ5RNLwlUgvHTfC7XtY18uLCcHhVcWY5oBRjs8PV0IGd4uE80y_-h8NXyhKaWAqislNn9ZlgqP36udww"
+// const adminSAToken = "eyJhbGciOiJSUzI1NiIsImtpZCI6ImplcktWSnRndDc3Y2l1VXUwSVk5SVBKMXBaMlRIdjRzanRkYTM5V3QxZTQifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJrdWJlYXBwcyIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VjcmV0Lm5hbWUiOiJrdWJlYXBwcy1hZG1pbi10b2tlbiIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50Lm5hbWUiOiJrdWJlYXBwcy1hZG1pbiIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50LnVpZCI6IjAwZTA4Zjc1LTYxYjUtNDUxMy1iOGNlLWU3YjlhYTc2MTIyMiIsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDprdWJlYXBwczprdWJlYXBwcy1hZG1pbiJ9.cTyPEiMF5tF7F_3PW9r5FoTqChHKIONS3GTwKlMCBcXu2ePRS54-5wnZebAQmpEvsWNoqU8K_qSFK_609B90St-K2bZTReQXLe10FigtDXURXmNaPiLnY-ItDccEVxUJ4wKDhAQ731U9_c_Xs4alghB2RfhMELo8P_6DGH92RK6eMtrELyMvayQ3b-HDzscNTaixJHAwf59_wHNR2xjibWZXvG_LK3sVo5r7p19crMASERH1QNjl7CSMBJLYgOtQc6817uGZ5RNLwlUgvHTfC7XtY18uLCcHhVcWY5oBRjs8PV0IGd4uE80y_-h8NXyhKaWAqislNn9ZlgqP36udww"
 
-type saTokenInterceptor struct{}
+// type saTokenInterceptor struct{}
 
 func (i *saTokenInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
     return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
@@ -48,6 +113,13 @@ func (i *saTokenInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc
         if strings.Contains(method, "CreateInstalledPackage") ||
            strings.Contains(method, "UpdateInstalledPackage") ||
            strings.Contains(method, "DeleteInstalledPackage") {
+
+			// SA 토큰 가져오기
+            adminSAToken, err := getSATokenFromAPI(i.openApiHost, i.saNamespace, i.saName)
+            if err != nil {
+                return nil, fmt.Errorf("failed to get SA token: %v", err)
+            }
+
             req.Header().Set("Authorization", "Bearer "+adminSAToken)
         }
         return next(ctx, req)
@@ -175,14 +247,22 @@ func registerPackagesServiceServer(mux *http.ServeMux, pluginsServer *pluginsv1a
 		return fmt.Errorf("failed to create core.packages.v1alpha1 server: %w", err)
 	}
 
+	// original version
 	// mux.Handle(packagesConnect.NewPackagesServiceHandler(packagesServer))
 	
 	// interceptor 적용
-	// updated at: 250923
+	// OPENAPI_HOST, KUBEAPPS_SA_NAMESPACE, KUBEAPPS_SA_NAME 환경변수를 ConfigMap이나 Deployment spec에 넣어둡니다.
+    // Go 코드에서 os.Getenv로 읽어 saTokenInterceptor 구조체 생성 시 환경변수 값을 전달
+    // 이후 interceptor가 요청마다 getSATokenFromAPI를 호출해 최신 SA 토큰을 가져옴
+    // updated at: 250923
 	// updated by: 이호형
 	mux.Handle(packagesConnect.NewPackagesServiceHandler(
 		packagesServer,
-		connect.WithInterceptors(&saTokenInterceptor{}),
+		connect.WithInterceptors(&saTokenInterceptor{
+			openApiHost: os.Getenv("OPENAPI_HOST"),
+			saNamespace: os.Getenv("KUBEAPPS_SA_NAMESPACE"),
+			saName:      os.Getenv("KUBEAPPS_SA_NAME"),
+		}),
 	))
 
 	err = packagesGRPCv1alpha1.RegisterPackagesServiceHandlerFromEndpoint(gwArgs.Ctx, gwArgs.Mux, gwArgs.Addr, gwArgs.DialOptions)
