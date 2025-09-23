@@ -38,31 +38,28 @@ import (
 // sa token 인터셉터 추가
 // updated at: 250923
 // updated by: 이호형
-func saTokenInterceptor(
+const adminSAToken = "eyJhbGciOiJSUzI1NiIsImtpZCI6ImplcktWSnRndDc3Y2l1VXUwSVk5SVBKMXBaMlRIdjRzanRkYTM5V3QxZTQifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJrdWJlYXBwcyIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VjcmV0Lm5hbWUiOiJrdWJlYXBwcy1hZG1pbi10b2tlbiIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50Lm5hbWUiOiJrdWJlYXBwcy1hZG1pbiIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50LnVpZCI6IjAwZTA4Zjc1LTYxYjUtNDUxMy1iOGNlLWU3YjlhYTc2MTIyMiIsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDprdWJlYXBwczprdWJlYXBwcy1hZG1pbiJ9.cTyPEiMF5tF7F_3PW9r5FoTqChHKIONS3GTwKlMCBcXu2ePRS54-5wnZebAQmpEvsWNoqU8K_qSFK_609B90St-K2bZTReQXLe10FigtDXURXmNaPiLnY-ItDccEVxUJ4wKDhAQ731U9_c_Xs4alghB2RfhMELo8P_6DGH92RK6eMtrELyMvayQ3b-HDzscNTaixJHAwf59_wHNR2xjibWZXvG_LK3sVo5r7p19crMASERH1QNjl7CSMBJLYgOtQc6817uGZ5RNLwlUgvHTfC7XtY18uLCcHhVcWY5oBRjs8PV0IGd4uE80y_-h8NXyhKaWAqislNn9ZlgqP36udww"
+
+// saTokenConnectInterceptor converts the gRPC logic into a Connect-compatible interceptor
+func saTokenConnectInterceptor(
     ctx context.Context,
-    req interface{},
-    info *grpc.UnaryServerInfo,
-    handler grpc.UnaryHandler,
-) (interface{}, error) {
+    next connect.HandlerFunc,
+) (connect.Response, error) {
 
-    // CUD 요청만 체크
-    if strings.Contains(info.FullMethod, "CreateInstalledPackage") ||
-       strings.Contains(info.FullMethod, "UpdateInstalledPackage") ||
-       strings.Contains(info.FullMethod, "DeleteInstalledPackage") {
+    // 요청 메서드 이름 가져오기
+    method := next.Spec().Procedure // ex: "CreateInstalledPackage"
 
-        md, ok := metadata.FromIncomingContext(ctx)
-        if !ok {
-            md = metadata.New(nil)
-        }
+    // CUD 요청만 토큰 추가
+    if strings.Contains(method, "CreateInstalledPackage") ||
+       strings.Contains(method, "UpdateInstalledPackage") ||
+       strings.Contains(method, "DeleteInstalledPackage") {
 
-        // 하드코딩 SA 토큰 사용
-        const adminSAToken = "eyJhbGciOiJSUzI1NiIsImtpZCI6ImplcktWSnRndDc3Y2l1VXUwSVk5SVBKMXBaMlRIdjRzanRkYTM5V3QxZTQifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJrdWJlYXBwcyIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VjcmV0Lm5hbWUiOiJrdWJlYXBwcy1hZG1pbi10b2tlbiIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50Lm5hbWUiOiJrdWJlYXBwcy1hZG1pbiIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50LnVpZCI6IjAwZTA4Zjc1LTYxYjUtNDUxMy1iOGNlLWU3YjlhYTc2MTIyMiIsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDprdWJlYXBwczprdWJlYXBwcy1hZG1pbiJ9.cTyPEiMF5tF7F_3PW9r5FoTqChHKIONS3GTwKlMCBcXu2ePRS54-5wnZebAQmpEvsWNoqU8K_qSFK_609B90St-K2bZTReQXLe10FigtDXURXmNaPiLnY-ItDccEVxUJ4wKDhAQ731U9_c_Xs4alghB2RfhMELo8P_6DGH92RK6eMtrELyMvayQ3b-HDzscNTaixJHAwf59_wHNR2xjibWZXvG_LK3sVo5r7p19crMASERH1QNjl7CSMBJLYgOtQc6817uGZ5RNLwlUgvHTfC7XtY18uLCcHhVcWY5oBRjs8PV0IGd4uE80y_-h8NXyhKaWAqislNn9ZlgqP36udww"
-        md.Set("authorization", "Bearer "+adminSAToken)
-
-        ctx = metadata.NewIncomingContext(ctx, md)
+        // 헤더에 SA 토큰 추가
+        next.Request().Header().Set("Authorization", "Bearer "+adminSAToken)
     }
 
-    return handler(ctx, req)
+    // 실제 처리 호출
+    return next.Call(ctx)
 }
 
 
@@ -185,7 +182,7 @@ func registerPackagesServiceServer(mux *http.ServeMux, pluginsServer *pluginsv1a
 	// updated by: 이호형
 	mux.Handle(packagesConnect.NewPackagesServiceHandler(
 		packagesServer,
-		connect.WithInterceptors(saTokenInterceptor), // 여기
+		connect.WithInterceptors(saTokenConnectInterceptor), // 여기
 	))
 
 	err = packagesGRPCv1alpha1.RegisterPackagesServiceHandlerFromEndpoint(gwArgs.Ctx, gwArgs.Mux, gwArgs.Addr, gwArgs.DialOptions)
