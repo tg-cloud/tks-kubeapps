@@ -31,6 +31,8 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	log "k8s.io/klog/v2"
+	"github.com/bufbuild/connect-go"
+	"google.golang.org/grpc/metadata"
 )
 
 // sa token 인터셉터 추가
