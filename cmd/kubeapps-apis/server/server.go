@@ -39,26 +39,21 @@ import (
 // updated by: 이호형
 const adminSAToken = "eyJhbGciOiJSUzI1NiIsImtpZCI6ImplcktWSnRndDc3Y2l1VXUwSVk5SVBKMXBaMlRIdjRzanRkYTM5V3QxZTQifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJrdWJlYXBwcyIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VjcmV0Lm5hbWUiOiJrdWJlYXBwcy1hZG1pbi10b2tlbiIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50Lm5hbWUiOiJrdWJlYXBwcy1hZG1pbiIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50LnVpZCI6IjAwZTA4Zjc1LTYxYjUtNDUxMy1iOGNlLWU3YjlhYTc2MTIyMiIsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDprdWJlYXBwczprdWJlYXBwcy1hZG1pbiJ9.cTyPEiMF5tF7F_3PW9r5FoTqChHKIONS3GTwKlMCBcXu2ePRS54-5wnZebAQmpEvsWNoqU8K_qSFK_609B90St-K2bZTReQXLe10FigtDXURXmNaPiLnY-ItDccEVxUJ4wKDhAQ731U9_c_Xs4alghB2RfhMELo8P_6DGH92RK6eMtrELyMvayQ3b-HDzscNTaixJHAwf59_wHNR2xjibWZXvG_LK3sVo5r7p19crMASERH1QNjl7CSMBJLYgOtQc6817uGZ5RNLwlUgvHTfC7XtY18uLCcHhVcWY5oBRjs8PV0IGd4uE80y_-h8NXyhKaWAqislNn9ZlgqP36udww"
 
-// saTokenConnectInterceptor converts the gRPC logic into a Connect-compatible interceptor
-func saTokenConnectInterceptor[T any](
+// saTokenConnectInterceptor (Docker 빌드 호환 버전, 제네릭 제거)
+func saTokenConnectInterceptor(
     ctx context.Context,
-    next connect.HandlerFunc[T],
-) (connect.Response[T], error) {
-
-    // 요청 메서드 이름 가져오기
+    req connect.AnyRequest,
+    next connect.HandlerFunc[connect.AnyRequest, connect.AnyResponse],
+) (connect.AnyResponse, error) {
     method := next.Spec().Procedure // ex: "CreateInstalledPackage"
 
-    // CUD 요청만 토큰 추가
     if strings.Contains(method, "CreateInstalledPackage") ||
        strings.Contains(method, "UpdateInstalledPackage") ||
        strings.Contains(method, "DeleteInstalledPackage") {
-
-        // 헤더에 SA 토큰 추가
-        next.Request().Header().Set("Authorization", "Bearer "+adminSAToken)
+        req.Header().Set("Authorization", "Bearer "+adminSAToken)
     }
 
-    // 실제 처리 호출
-    return next.Call(ctx)
+    return next.Call(ctx, req)
 }
 
 
@@ -181,7 +176,7 @@ func registerPackagesServiceServer(mux *http.ServeMux, pluginsServer *pluginsv1a
 	// updated by: 이호형
 	mux.Handle(packagesConnect.NewPackagesServiceHandler(
 		packagesServer,
-		connect.WithInterceptors(saTokenConnectInterceptor[packagesConnect.PackagesServiceRequest]), // 제네릭 타입 지정
+		connect.WithInterceptors(saTokenConnectInterceptor), // 제네릭 제거
 	))
 
 	err = packagesGRPCv1alpha1.RegisterPackagesServiceHandlerFromEndpoint(gwArgs.Ctx, gwArgs.Mux, gwArgs.Addr, gwArgs.DialOptions)
