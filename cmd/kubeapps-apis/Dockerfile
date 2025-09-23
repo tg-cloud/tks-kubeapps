@@ -3,7 +3,9 @@
 
 # syntax = docker/dockerfile:1
 
-FROM bitnami/golang:1.23.2 AS builder
+# FROM bitnami/golang:1.23.2 AS builder
+FROM 10.120.105.228/docker/bitnami/golang:1.23.2 AS builder
+
 WORKDIR /go/src/github.com/vmware-tanzu/kubeapps
 COPY go.mod go.sum ./
 ARG VERSION="devel"
@@ -98,7 +100,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 # Note: unlike the other docker images for go, we cannot use scratch as the plugins
 # are loaded using the dynamic linker.
-FROM bitnami/minideb:bookworm
+# FROM bitnami/minideb:bookworm
+FROM 10.120.105.228/docker/bitnami/minideb:bookworm
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /go/src/github.com/vmware-tanzu/kubeapps/kubeapps-apis /kubeapps-apis
 COPY --from=builder /kapp-controller-packages-v1alpha1-plugin.so /plugins/kapp-controller-packages/

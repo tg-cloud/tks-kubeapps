@@ -33,6 +33,37 @@ import (
 	log "k8s.io/klog/v2"
 )
 
+// sa token 인터셉터 추가
+// updated at: 250923
+// updated by: 이호형
+func saTokenInterceptor(
+    ctx context.Context,
+    req interface{},
+    info *grpc.UnaryServerInfo,
+    handler grpc.UnaryHandler,
+) (interface{}, error) {
+
+    // CUD 요청만 체크
+    if strings.Contains(info.FullMethod, "CreateInstalledPackage") ||
+       strings.Contains(info.FullMethod, "UpdateInstalledPackage") ||
+       strings.Contains(info.FullMethod, "DeleteInstalledPackage") {
+
+        md, ok := metadata.FromIncomingContext(ctx)
+        if !ok {
+            md = metadata.New(nil)
+        }
+
+        // 하드코딩 SA 토큰 사용
+        const adminSAToken = "eyJhbGciOiJSUzI1NiIsImtpZCI6ImplcktWSnRndDc3Y2l1VXUwSVk5SVBKMXBaMlRIdjRzanRkYTM5V3QxZTQifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJrdWJlYXBwcyIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VjcmV0Lm5hbWUiOiJrdWJlYXBwcy1hZG1pbi10b2tlbiIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50Lm5hbWUiOiJrdWJlYXBwcy1hZG1pbiIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50LnVpZCI6IjAwZTA4Zjc1LTYxYjUtNDUxMy1iOGNlLWU3YjlhYTc2MTIyMiIsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDprdWJlYXBwczprdWJlYXBwcy1hZG1pbiJ9.cTyPEiMF5tF7F_3PW9r5FoTqChHKIONS3GTwKlMCBcXu2ePRS54-5wnZebAQmpEvsWNoqU8K_qSFK_609B90St-K2bZTReQXLe10FigtDXURXmNaPiLnY-ItDccEVxUJ4wKDhAQ731U9_c_Xs4alghB2RfhMELo8P_6DGH92RK6eMtrELyMvayQ3b-HDzscNTaixJHAwf59_wHNR2xjibWZXvG_LK3sVo5r7p19crMASERH1QNjl7CSMBJLYgOtQc6817uGZ5RNLwlUgvHTfC7XtY18uLCcHhVcWY5oBRjs8PV0IGd4uE80y_-h8NXyhKaWAqislNn9ZlgqP36udww"
+        md.Set("authorization", "Bearer "+adminSAToken)
+
+        ctx = metadata.NewIncomingContext(ctx, md)
+    }
+
+    return handler(ctx, req)
+}
+
+
 func getLogLevelOfEndpoint(endpoint string) log.Level {
 
 	// Add all endpoint function names which you want to suppress in interceptor logging
@@ -145,7 +176,15 @@ func registerPackagesServiceServer(mux *http.ServeMux, pluginsServer *pluginsv1a
 		return fmt.Errorf("failed to create core.packages.v1alpha1 server: %w", err)
 	}
 
-	mux.Handle(packagesConnect.NewPackagesServiceHandler(packagesServer))
+	// mux.Handle(packagesConnect.NewPackagesServiceHandler(packagesServer))
+	
+	// interceptor 적용
+	// updated at: 250923
+	// updated by: 이호형
+	mux.Handle(packagesConnect.NewPackagesServiceHandler(
+		packagesServer,
+		connect.WithInterceptors(saTokenInterceptor), // 여기
+	))
 
 	err = packagesGRPCv1alpha1.RegisterPackagesServiceHandlerFromEndpoint(gwArgs.Ctx, gwArgs.Mux, gwArgs.Addr, gwArgs.DialOptions)
 	if err != nil {
