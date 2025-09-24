@@ -123,6 +123,8 @@ func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSa
 func (i *saTokenInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
     return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
         method := req.Spec().Procedure
+
+        // 설치/업데이트/삭제 관련 메서드만 처리
         if strings.Contains(method, "CreateInstalledPackage") ||
             strings.Contains(method, "UpdateInstalledPackage") ||
             strings.Contains(method, "DeleteInstalledPackage") {
@@ -130,20 +132,16 @@ func (i *saTokenInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc
             r := req.Any()
             var cluster string
 
-            // 먼저 문자열로 추출 가능한지 확인
+            // protobuf 메시지에서 cluster 문자열 필드 추출
             if c, ok := r.(interface{ GetCluster() string }); ok {
                 cluster = c.GetCluster()
-                log.Infof("cluster (string): %s", cluster)
-            } else if cRef, ok := r.(interface{ GetCluster() *packagesGRPCv1alpha1.ClusterReference }); ok {
-                cr := cRef.GetCluster()
-                if cr != nil {
-                    cluster = cr.GetName()
-                    log.Infof("cluster (ClusterReference): %s", cluster)
-                } else {
-                    return nil, fmt.Errorf("cluster reference is nil in request type %T", r)
+                if cluster == "" {
+                    return nil, fmt.Errorf("cluster field is empty in request type %T", r)
                 }
+                log.Infof("cluster: %s", cluster)
             } else {
-                return nil, fmt.Errorf("unexpected request type %T for method %s", r, method)
+                // ClusterReference 타입 사용 없이 실패 처리
+                return nil, fmt.Errorf("cannot extract cluster from request type %T for method %s", r, method)
             }
 
             // SA 토큰 가져오기
@@ -152,9 +150,11 @@ func (i *saTokenInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc
                 return nil, fmt.Errorf("failed to get SA token: %v", err)
             }
 
+            // Authorization 헤더 세팅
             req.Header().Set("Authorization", "Bearer "+adminSAToken)
         }
 
+        // 다음 handler 호출
         return next(ctx, req)
     }
 }
