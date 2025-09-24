@@ -380,71 +380,13 @@ import { ResourcesService } from "gen/kubeappsapis/plugins/resources/v1alpha1/re
 import { Auth } from "./Auth";
 import * as URL from "./url";
 
-interface TokenRequestOptions {
-  openApiHost: string;
-  saNamespace: string;
-  saName: string;
-  tokenRequestSaToken: string;
-}
-
-// server.go의 getSATokenFromAPI 구현과 동일하게
-async function getSATokenFromAPI(options: TokenRequestOptions, cluster: string): Promise<string> {
-  const url = `http://${options.openApiHost}/k8s/api/v1/clusters/${encodeURIComponent(
-    cluster,
-  )}/namespaces/${options.saNamespace}/serviceaccounts/${options.saName}/token`;
-
-  const body = {
-    apiVersion: "authentication.k8s.io/v1",
-    kind: "TokenRequest",
-    metadata: {
-      name: options.saName,
-      namespace: options.saNamespace,
-      labels: { cluster },
-    },
-    spec: {
-      audiences: ["kubernetes"],
-      expirationSeconds: 3600,
-    },
-  };
-
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${options.tokenRequestSaToken}`,
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!resp.ok) {
-    throw new Error(`Failed to get SA token, status: ${resp.status}`);
-  }
-
-  const data = await resp.json();
-  if (!data.status?.token) {
-    throw new Error("SA token not returned from API");
-  }
-
-  return data.status.token;
-}
-
 export class KubeappsGrpcClient {
   private transport: Transport;
-  private tokenOptions: TokenRequestOptions;
 
   constructor(token?: string) {
-    // 환경변수 기반 옵션 세팅 (server.go와 동일)
-    this.tokenOptions = {
-      openApiHost: process.env.OPENAPI_HOST || "",
-      saNamespace: process.env.KUBEAPPS_SA_NAMESPACE || "kubeapps",
-      saName: process.env.KUBEAPPS_SA_NAME || "kubeapps-admin",
-      tokenRequestSaToken: process.env.TOKENREQUEST_SA_TOKEN || token || "",
-    };
-
     const auth: Interceptor = next => async req => {
-      // CUD 요청 판단 (server.go switch case 동일)
-      let cluster: string | undefined;
       const anyReq = (req as any).any();
+      let cluster: string | undefined;
 
       switch (anyReq.constructor.name) {
         case "CreateInstalledPackageRequest":
@@ -457,7 +399,7 @@ export class KubeappsGrpcClient {
           cluster = anyReq?.installedPackageRef?.context?.cluster;
           break;
         default:
-          // 설치/업데이트/삭제가 아니면 기존 토큰 사용
+          // 설치/업데이트/삭제가 아니면 로그인한 사용자 토큰 사용
           const t = token ?? Auth.getAuthToken();
           if (t) req.header.set("Authorization", `Bearer ${t}`);
           return await next(req);
@@ -465,9 +407,15 @@ export class KubeappsGrpcClient {
 
       if (!cluster) throw new Error("Cluster not found in request");
 
-      // server.go 방식으로 SA 토큰 fetch
-      const saToken = await getSATokenFromAPI(this.tokenOptions, cluster);
-      req.header.set("Authorization", `Bearer ${saToken}`);
+      // cluster가 객체이면 문자열로 직렬화
+      if (cluster && typeof cluster === "object") {
+        const c = cluster as Record<string, any>;
+        cluster = c.name ?? c.id ?? JSON.stringify(c);
+      }
+
+      // server.go에서 이미 처리된 토큰 사용
+      const t = token ?? Auth.getAuthToken();
+      if (t) req.header.set("Authorization", `Bearer ${t}`);
 
       return await next(req);
     };
@@ -495,6 +443,7 @@ export class KubeappsGrpcClient {
   public getResourcesServiceClientImpl() {
     return this.getGrpcClient(ResourcesService);
   }
+
   // Helm
   public getHelmPackagesServiceClientImpl() {
     return this.getGrpcClient(HelmPackagesService);
@@ -502,6 +451,7 @@ export class KubeappsGrpcClient {
   public getHelmRepositoriesServiceClientImpl() {
     return this.getGrpcClient(HelmRepositoriesService);
   }
+
   // KappController
   public getKappControllerPackagesServiceClientImpl() {
     return this.getGrpcClient(KappControllerPackagesService);
@@ -509,6 +459,7 @@ export class KubeappsGrpcClient {
   public getKappControllerRepositoriesServiceClientImpl() {
     return this.getGrpcClient(KappControllerRepositoriesService);
   }
+
   // Fluxv2
   public getFluxv2PackagesServiceClientImpl() {
     return this.getGrpcClient(FluxV2PackagesService);
