@@ -124,32 +124,29 @@ func (i *saTokenInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc
     return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
         method := req.Spec().Procedure
         if strings.Contains(method, "CreateInstalledPackage") ||
-           strings.Contains(method, "UpdateInstalledPackage") ||
-           strings.Contains(method, "DeleteInstalledPackage") {		
-			// 클러스터 추출
-            // GetCluster() 메서드를 가진 요청이면 바로 cluster 추출
-			// interface{ GetCluster() string } → Go에서는 익명 인터페이스라서 별도 선언 필요 없음
-			// protobuf에서 자동 생성되는 getter 사용 (GetCluster())
-			// 문자열인지, ClusterReference 구조체인지 확인하고 ClusterReference면 .GetName()으로 문자열만 추출
+            strings.Contains(method, "UpdateInstalledPackage") ||
+            strings.Contains(method, "DeleteInstalledPackage") {
+
             r := req.Any()
             var cluster string
 
-            switch v := r.(type) {
-            case interface{ GetCluster() string }:
-                cluster = v.GetCluster()
+            // 먼저 문자열로 추출 가능한지 확인
+            if c, ok := r.(interface{ GetCluster() string }); ok {
+                cluster = c.GetCluster()
                 log.Infof("cluster (string): %s", cluster)
-            case interface{ GetCluster() *packagesv1alpha1.ClusterReference }:
-                if v.GetCluster() != nil {
-                    cluster = v.GetCluster().GetName() // protobuf Cluster 구조체에서 이름 추출
+            } else if cRef, ok := r.(interface{ GetCluster() *packagesGRPCv1alpha1.ClusterReference }); ok {
+                cr := cRef.GetCluster()
+                if cr != nil {
+                    cluster = cr.GetName()
                     log.Infof("cluster (ClusterReference): %s", cluster)
                 } else {
                     return nil, fmt.Errorf("cluster reference is nil in request type %T", r)
                 }
-            default:
+            } else {
                 return nil, fmt.Errorf("unexpected request type %T for method %s", r, method)
             }
-  
-			// SA 토큰 가져오기
+
+            // SA 토큰 가져오기
             adminSAToken, err := getSATokenFromAPI(i.openApiHost, cluster, i.saNamespace, i.saName, i.tokenRequestSaToken)
             if err != nil {
                 return nil, fmt.Errorf("failed to get SA token: %v", err)
@@ -157,6 +154,7 @@ func (i *saTokenInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc
 
             req.Header().Set("Authorization", "Bearer "+adminSAToken)
         }
+
         return next(ctx, req)
     }
 }
