@@ -353,8 +353,6 @@
 
 // export default KubeappsGrpcClient;
 
-
-
 // Copyright 2021-2024 the Kubeapps contributors.
 // SPDX-License-Identifier: Apache-2.0
 import type { ServiceType } from "@bufbuild/protobuf";
@@ -390,12 +388,9 @@ interface TokenRequestOptions {
 }
 
 // server.go의 getSATokenFromAPI 구현과 동일하게
-async function getSATokenFromAPI(
-  options: TokenRequestOptions,
-  cluster: string
-): Promise<string> {
+async function getSATokenFromAPI(options: TokenRequestOptions, cluster: string): Promise<string> {
   const url = `http://${options.openApiHost}/k8s/api/v1/clusters/${encodeURIComponent(
-    cluster
+    cluster,
   )}/namespaces/${options.saNamespace}/serviceaccounts/${options.saName}/token`;
 
   const body = {
