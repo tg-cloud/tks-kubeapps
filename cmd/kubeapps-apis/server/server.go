@@ -55,6 +55,9 @@ func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSa
         "metadata": map[string]string{
             "name":      saName,
             "namespace": saNamespace,
+			"labels": {
+				"cluster": cluster,
+			},
         },
         "spec": map[string]interface{}{
             "audiences":         []string{"kubernetes"},
