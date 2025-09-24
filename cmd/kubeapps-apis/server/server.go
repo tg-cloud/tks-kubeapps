@@ -55,9 +55,6 @@ func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSa
         "metadata": map[string]string{
             "name":      saName,
             "namespace": saNamespace,
-			"labels": {
-				"cluster": cluster,
-			},
         },
         "spec": map[string]interface{}{
             "audiences":         []string{"kubernetes"},
@@ -126,36 +123,41 @@ func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSa
 func (i *saTokenInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
     return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
         method := req.Spec().Procedure
+        var cluster string
 
-        // 설치/업데이트/삭제 관련 메서드만 처리
-        if strings.Contains(method, "CreateInstalledPackage") ||
-            strings.Contains(method, "UpdateInstalledPackage") ||
-            strings.Contains(method, "DeleteInstalledPackage") {
-
-            r := req.Any()
-            var cluster string
-
-            // protobuf 메시지에서 cluster 문자열 필드 추출
-            if c, ok := r.(interface{ GetCluster() string }); ok {
-                cluster = c.GetCluster()
-                if cluster == "" {
-                    return nil, fmt.Errorf("cluster field is empty in request type %T", r)
-                }
-                log.Infof("cluster: %s", cluster)
-            } else {
-                // ClusterReference 타입 사용 없이 실패 처리
-                return nil, fmt.Errorf("cannot extract cluster from request type %T for method %s", r, method)
-            }
-
-            // SA 토큰 가져오기
-            adminSAToken, err := getSATokenFromAPI(i.openApiHost, cluster, i.saNamespace, i.saName, i.tokenRequestSaToken)
-            if err != nil {
-                return nil, fmt.Errorf("failed to get SA token: %v", err)
-            }
-
-            // Authorization 헤더 세팅
-            req.Header().Set("Authorization", "Bearer "+adminSAToken)
+		// gRPC 요청 메시지(request.Msg) 안에 있는 필드에서 cluster 값을 가져옴
+		// 요청 타입에 따라 cluster를 추출
+        switch r := req.Any().(type) {
+        case *packages.CreateInstalledPackageRequest:
+            cluster = r.GetTargetContext().GetCluster()
+        case *packages.UpdateInstalledPackageRequest:
+            cluster = r.GetInstalledPackageRef().GetContext().GetCluster()
+        case *packages.DeleteInstalledPackageRequest:
+            cluster = r.GetInstalledPackageRef().GetContext().GetCluster()
+        default:
+            // 설치/업데이트/삭제가 아니면 그냥 패스
+            return next(ctx, req)
         }
+
+        if cluster == "" {
+            return nil, fmt.Errorf("cluster not found in request for method %s", method)
+        }
+        log.Infof("cluster extracted from request: %s", cluster)
+
+        // SA 토큰 가져오기
+        adminSAToken, err := getSATokenFromAPI(
+            i.openApiHost,
+            cluster,
+            i.saNamespace,
+            i.saName,
+            i.tokenRequestSaToken,
+        )
+        if err != nil {
+            return nil, fmt.Errorf("failed to get SA token: %v", err)
+        }
+
+        // Authorization 헤더 세팅
+        req.Header().Set("Authorization", "Bearer "+adminSAToken)
 
         // 다음 handler 호출
         return next(ctx, req)
