@@ -389,26 +389,30 @@ export class KubeappsGrpcClient {
       let cluster: string | undefined;
 
       switch (anyReq.constructor.name) {
-        case "CreateInstalledPackageRequest":
+        case "CreateInstalledPackageRequest": {
           cluster = anyReq?.targetContext?.cluster;
           break;
-        case "UpdateInstalledPackageRequest":
+        }
+        case "UpdateInstalledPackageRequest": {
           cluster = anyReq?.installedPackageRef?.context?.cluster;
           break;
-        case "DeleteInstalledPackageRequest":
+        }
+        case "DeleteInstalledPackageRequest": {
           cluster = anyReq?.installedPackageRef?.context?.cluster;
           break;
-        default:
+        }
+        default: {
           // 설치/업데이트/삭제가 아니면 로그인한 사용자 토큰 사용
           const t = token ?? Auth.getAuthToken();
           if (t) req.header.set("Authorization", `Bearer ${t}`);
           return await next(req);
+        }
       }
 
       if (!cluster) throw new Error("Cluster not found in request");
 
       // cluster가 객체이면 문자열로 직렬화
-      if (cluster && typeof cluster === "object") {
+      if (typeof cluster === "object") {
         const c = cluster as Record<string, any>;
         cluster = c.name ?? c.id ?? JSON.stringify(c);
       }
