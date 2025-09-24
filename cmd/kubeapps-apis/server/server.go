@@ -50,20 +50,20 @@ func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSa
     url := fmt.Sprintf("https://%s/k8s/api/v1/clusters/%s/namespaces/%s/serviceaccounts/%s/token", openApiHost, cluster, saNamespace, saName)
 
     requestBody := map[string]interface{}{
-        "apiVersion": "authentication.k8s.io/v1",
-        "kind":       "TokenRequest",
-        "metadata": map[string]string{
-            "name":      saName,
-            "namespace": saNamespace,
-			"labels": map[string]string{
+		"apiVersion": "authentication.k8s.io/v1",
+		"kind":       "TokenRequest",
+		"metadata": map[string]interface{}{
+			"name":      saName,
+			"namespace": saNamespace,
+			"labels": map[string]interface{}{
 				"cluster": cluster,
 			},
-        },
-        "spec": map[string]interface{}{
-            "audiences":         []string{"kubernetes"},
-            "expirationSeconds": 3600,
-        },
-    }
+		},
+		"spec": map[string]interface{}{
+			"audiences":         []string{"kubernetes"},
+			"expirationSeconds": 3600,
+		},
+	}
 
 	// JSON 형식으로 변환
     bodyBytes, err := json.Marshal(requestBody)
