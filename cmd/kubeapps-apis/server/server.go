@@ -55,6 +55,9 @@ func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSa
         "metadata": map[string]string{
             "name":      saName,
             "namespace": saNamespace,
+			"labels": map[string]string{
+				"cluster": cluster,
+			},
         },
         "spec": map[string]interface{}{
             "audiences":         []string{"kubernetes"},
@@ -129,11 +132,11 @@ func (i *saTokenInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc
 		// 요청 타입에 따라 cluster를 추출
         switch r := req.Any().(type) {
         case *packagesGRPCv1alpha1.CreateInstalledPackageRequest:
-            cluster = r.GetTargetContext().GetCluster().GetName()  
+            cluster = r.GetTargetContext().GetCluster()
         case *packagesGRPCv1alpha1.UpdateInstalledPackageRequest:
-            cluster = r.GetInstalledPackageRef().GetContext().GetCluster().GetName()  
+            cluster = r.GetInstalledPackageRef().GetContext().GetCluster()
         case *packagesGRPCv1alpha1.DeleteInstalledPackageRequest:
-            cluster = r.GetInstalledPackageRef().GetContext().GetCluster().GetName()  
+            cluster = r.GetInstalledPackageRef().GetContext().GetCluster()
         default:
             // 설치/업데이트/삭제가 아니면 그냥 패스
             return next(ctx, req)
