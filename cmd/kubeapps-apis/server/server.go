@@ -138,7 +138,7 @@ func (i *saTokenInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc
             case interface{ GetCluster() string }:
                 cluster = v.GetCluster()
                 log.Infof("cluster (string): %s", cluster)
-            case interface{ GetCluster() *corev1.ClusterReference }:
+            case interface{ GetCluster() *packagesv1alpha1.ClusterReference }:
                 if v.GetCluster() != nil {
                     cluster = v.GetCluster().GetName() // protobuf Cluster 구조체에서 이름 추출
                     log.Infof("cluster (ClusterReference): %s", cluster)
