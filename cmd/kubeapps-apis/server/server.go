@@ -42,11 +42,12 @@ type saTokenInterceptor struct{
     openApiHost  string
     saNamespace  string
     saName       string
+	tokenRequestSaToken string
 }
 
 // open-api-k8s API 호출로 Kubeapps admin sa token 발급받기
-func getSATokenFromAPI(openApiHost, saNamespace, saName string) (string, error) {
-    url := fmt.Sprintf("http://%s/k8s/api/v1/clusters/default/namespaces/%s/serviceaccounts/%s/token", openApiHost, saNamespace, saName)
+func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSaToken string) (string, error) {
+    url := fmt.Sprintf("http://%s/k8s/api/v1/clusters/%s/namespaces/%s/serviceaccounts/%s/token", openApiHost, cluster, saNamespace, saName)
 
     requestBody := map[string]interface{}{
         "apiVersion": "authentication.k8s.io/v1",
@@ -67,8 +68,19 @@ func getSATokenFromAPI(openApiHost, saNamespace, saName string) (string, error) 
         return "", err
     }
 
-    // HTTP POST 요청 전송
-    resp, err := http.Post(url, "application/json", bytes.NewBuffer(bodyBytes))
+    // HTTP POST 요청 생성
+    req, err := http.NewRequest("POST", url, bytes.NewBuffer(bodyBytes))
+    if err != nil {
+        return "", err
+    }
+    req.Header.Set("Content-Type", "application/json")
+
+	// 인증 헤더 추가, tokenRequest API 전용 SA Token
+    req.Header.Set("Authorization", "Bearer "+tokenRequestSaToken) 
+
+	// 요청 전송
+    client := &http.Client{}
+    resp, err := client.Do(req)
     if err != nil {
         return "", err
     }
@@ -113,10 +125,19 @@ func (i *saTokenInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc
         method := req.Spec().Procedure
         if strings.Contains(method, "CreateInstalledPackage") ||
            strings.Contains(method, "UpdateInstalledPackage") ||
-           strings.Contains(method, "DeleteInstalledPackage") {
-
+           strings.Contains(method, "DeleteInstalledPackage") {		
+			// 클러스터 추출
+            // GetCluster() 메서드를 가진 요청이면 바로 cluster 추출
+			// interface{ GetCluster() string } → Go에서는 익명 인터페이스라서 별도 선언 필요 없음
+			// protobuf에서 자동 생성되는 getter 사용 (GetCluster())
+            r, ok := req.Any().(interface{ GetCluster() string })
+            if !ok {
+                return nil, fmt.Errorf("request type %T has no GetCluster()", req.Any())
+            }
+            cluster := r.GetCluster()
+  
 			// SA 토큰 가져오기
-            adminSAToken, err := getSATokenFromAPI(i.openApiHost, i.saNamespace, i.saName)
+            adminSAToken, err := getSATokenFromAPI(i.openApiHost, cluster, i.saNamespace, i.saName, i.tokenRequestSaToken)
             if err != nil {
                 return nil, fmt.Errorf("failed to get SA token: %v", err)
             }
@@ -263,6 +284,7 @@ func registerPackagesServiceServer(mux *http.ServeMux, pluginsServer *pluginsv1a
 			openApiHost: os.Getenv("OPENAPI_HOST"),
 			saNamespace: os.Getenv("KUBEAPPS_SA_NAMESPACE"),
 			saName:      os.Getenv("KUBEAPPS_SA_NAME"),
+			tokenRequestSaToken: os.Getenv("TOKENREQUEST_SA_TOKEN"),
 		}),
 	))
 
