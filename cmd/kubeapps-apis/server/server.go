@@ -128,11 +128,11 @@ func (i *saTokenInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc
 		// gRPC 요청 메시지(request.Msg) 안에 있는 필드에서 cluster 값을 가져옴
 		// 요청 타입에 따라 cluster를 추출
         switch r := req.Any().(type) {
-        case *packages.CreateInstalledPackageRequest:
+        case *packagesv1alpha1.CreateInstalledPackageRequest:
             cluster = r.GetTargetContext().GetCluster()
-        case *packages.UpdateInstalledPackageRequest:
+        case *packagesv1alpha1.UpdateInstalledPackageRequest:
             cluster = r.GetInstalledPackageRef().GetContext().GetCluster()
-        case *packages.DeleteInstalledPackageRequest:
+        case *packagesv1alpha1.DeleteInstalledPackageRequest:
             cluster = r.GetInstalledPackageRef().GetContext().GetCluster()
         default:
             // 설치/업데이트/삭제가 아니면 그냥 패스
