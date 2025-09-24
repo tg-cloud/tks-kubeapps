@@ -47,7 +47,7 @@ type saTokenInterceptor struct{
 
 // open-api-k8s API 호출로 Kubeapps admin sa token 발급받기
 func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSaToken string) (string, error) {
-    url := fmt.Sprintf("http://%s/k8s/api/v1/clusters/%s/namespaces/%s/serviceaccounts/%s/token", openApiHost, cluster, saNamespace, saName)
+    url := fmt.Sprintf("https://%s/k8s/api/v1/clusters/%s/namespaces/%s/serviceaccounts/%s/token", openApiHost, cluster, saNamespace, saName)
 
     requestBody := map[string]interface{}{
         "apiVersion": "authentication.k8s.io/v1",
@@ -129,11 +129,11 @@ func (i *saTokenInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc
 		// 요청 타입에 따라 cluster를 추출
         switch r := req.Any().(type) {
         case *packagesGRPCv1alpha1.CreateInstalledPackageRequest:
-            cluster = r.GetTargetContext().GetCluster()
+            cluster = r.GetTargetContext().GetCluster().GetName()  
         case *packagesGRPCv1alpha1.UpdateInstalledPackageRequest:
-            cluster = r.GetInstalledPackageRef().GetContext().GetCluster()
+            cluster = r.GetInstalledPackageRef().GetContext().GetCluster().GetName()  
         case *packagesGRPCv1alpha1.DeleteInstalledPackageRequest:
-            cluster = r.GetInstalledPackageRef().GetContext().GetCluster()
+            cluster = r.GetInstalledPackageRef().GetContext().GetCluster().GetName()  
         default:
             // 설치/업데이트/삭제가 아니면 그냥 패스
             return next(ctx, req)
