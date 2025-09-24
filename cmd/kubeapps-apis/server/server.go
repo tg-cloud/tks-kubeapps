@@ -130,11 +130,24 @@ func (i *saTokenInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc
             // GetCluster() 메서드를 가진 요청이면 바로 cluster 추출
 			// interface{ GetCluster() string } → Go에서는 익명 인터페이스라서 별도 선언 필요 없음
 			// protobuf에서 자동 생성되는 getter 사용 (GetCluster())
-            r, ok := req.Any().(interface{ GetCluster() string })
-            if !ok {
-                return nil, fmt.Errorf("request type %T has no GetCluster()", req.Any())
+			// 문자열인지, ClusterReference 구조체인지 확인하고 ClusterReference면 .GetName()으로 문자열만 추출
+            r := req.Any()
+            var cluster string
+
+            switch v := r.(type) {
+            case interface{ GetCluster() string }:
+                cluster = v.GetCluster()
+                log.Infof("cluster (string): %s", cluster)
+            case interface{ GetCluster() *corev1.ClusterReference }:
+                if v.GetCluster() != nil {
+                    cluster = v.GetCluster().GetName() // protobuf Cluster 구조체에서 이름 추출
+                    log.Infof("cluster (ClusterReference): %s", cluster)
+                } else {
+                    return nil, fmt.Errorf("cluster reference is nil in request type %T", r)
+                }
+            default:
+                return nil, fmt.Errorf("unexpected request type %T for method %s", r, method)
             }
-            cluster := r.GetCluster()
   
 			// SA 토큰 가져오기
             adminSAToken, err := getSATokenFromAPI(i.openApiHost, cluster, i.saNamespace, i.saName, i.tokenRequestSaToken)
