@@ -107,7 +107,6 @@ func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSa
 		return "", err
 	}
 
-	log.Infof("response: %s", response.Status.Token)
 	// 발급받은 토큰 반환
 	return response.Status.Token, nil
 
