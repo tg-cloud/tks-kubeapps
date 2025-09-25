@@ -160,8 +160,12 @@ func (i *saTokenInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc
         }
 		log.Infof("adminSAToken: %s", adminSAToken)
 
-        // Authorization 헤더 세팅
-        req.Header().Set("Authorization", "Bearer "+adminSATokenTest)
+        // 하드코딩 Authorization 헤더 세팅
+        // req.Header().Set("Authorization", "Bearer "+adminSATokenTest)
+
+		// 가져온 SA로 헤더 세팅
+	    req.Header().Set("Authorization", "Bearer "+adminSAToken)
+
 
         // 다음 handler 호출
         return next(ctx, req)
