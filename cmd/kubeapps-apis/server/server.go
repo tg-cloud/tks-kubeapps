@@ -35,6 +35,7 @@ import (
 	"bytes"
     "encoding/json"
 	"os"
+	"gopkg.in/yaml.v3"
 )
 
 // 환경변수
@@ -63,18 +64,18 @@ func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSa
 		},
 	}
 
-	// JSON 형식으로 변환
-    bodyBytes, err := json.Marshal(requestBody)
-    if err != nil {
-        return "", err
-    }
+	// YAML 형식으로 변환
+    bodyBytes, err := yaml.Marshal(requestBody)
+	if err != nil {
+		return "", err
+	}
 
     // HTTP POST 요청 생성
     req, err := http.NewRequest("POST", url, bytes.NewBuffer(bodyBytes))
     if err != nil {
         return "", err
     }
-    req.Header.Set("Content-Type", "application/json")
+    req.Header.Set("Content-Type", "application/yaml")
 
 	// 'sa-token' 인증 헤더 추가, tokenRequest API 전용 SA Token
     req.Header.Set("sa-token", tokenRequestSaToken) 
