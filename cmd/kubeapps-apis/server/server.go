@@ -107,6 +107,7 @@ func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSa
 		return "", err
 	}
 
+	log.Infof("response: %s", response.Status.Token)
 	// 발급받은 토큰 반환
 	return response.Status.Token, nil
 
@@ -118,7 +119,7 @@ func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSa
 // updated at: 250923
 // updated by: 이호형
 // Interceptor struct 방식으로 변경
-// const adminSAToken = "eyJhbGciOiJSUzI1NiIsImtpZCI6ImplcktWSnRndDc3Y2l1VXUwSVk5SVBKMXBaMlRIdjRzanRkYTM5V3QxZTQifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJrdWJlYXBwcyIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VjcmV0Lm5hbWUiOiJrdWJlYXBwcy1hZG1pbi10b2tlbiIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50Lm5hbWUiOiJrdWJlYXBwcy1hZG1pbiIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50LnVpZCI6IjAwZTA4Zjc1LTYxYjUtNDUxMy1iOGNlLWU3YjlhYTc2MTIyMiIsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDprdWJlYXBwczprdWJlYXBwcy1hZG1pbiJ9.cTyPEiMF5tF7F_3PW9r5FoTqChHKIONS3GTwKlMCBcXu2ePRS54-5wnZebAQmpEvsWNoqU8K_qSFK_609B90St-K2bZTReQXLe10FigtDXURXmNaPiLnY-ItDccEVxUJ4wKDhAQ731U9_c_Xs4alghB2RfhMELo8P_6DGH92RK6eMtrELyMvayQ3b-HDzscNTaixJHAwf59_wHNR2xjibWZXvG_LK3sVo5r7p19crMASERH1QNjl7CSMBJLYgOtQc6817uGZ5RNLwlUgvHTfC7XtY18uLCcHhVcWY5oBRjs8PV0IGd4uE80y_-h8NXyhKaWAqislNn9ZlgqP36udww"
+const adminSATokenTest = "eyJhbGciOiJSUzI1NiIsImtpZCI6ImplcktWSnRndDc3Y2l1VXUwSVk5SVBKMXBaMlRIdjRzanRkYTM5V3QxZTQifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJrdWJlYXBwcyIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VjcmV0Lm5hbWUiOiJrdWJlYXBwcy1hZG1pbi10b2tlbiIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50Lm5hbWUiOiJrdWJlYXBwcy1hZG1pbiIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50LnVpZCI6IjAwZTA4Zjc1LTYxYjUtNDUxMy1iOGNlLWU3YjlhYTc2MTIyMiIsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDprdWJlYXBwczprdWJlYXBwcy1hZG1pbiJ9.cTyPEiMF5tF7F_3PW9r5FoTqChHKIONS3GTwKlMCBcXu2ePRS54-5wnZebAQmpEvsWNoqU8K_qSFK_609B90St-K2bZTReQXLe10FigtDXURXmNaPiLnY-ItDccEVxUJ4wKDhAQ731U9_c_Xs4alghB2RfhMELo8P_6DGH92RK6eMtrELyMvayQ3b-HDzscNTaixJHAwf59_wHNR2xjibWZXvG_LK3sVo5r7p19crMASERH1QNjl7CSMBJLYgOtQc6817uGZ5RNLwlUgvHTfC7XtY18uLCcHhVcWY5oBRjs8PV0IGd4uE80y_-h8NXyhKaWAqislNn9ZlgqP36udww"
 
 // type saTokenInterceptor struct{}
 
@@ -157,9 +158,10 @@ func (i *saTokenInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc
         if err != nil {
             return nil, fmt.Errorf("failed to get SA token: %v", err)
         }
+		log.Infof("adminSAToken: %s", adminSAToken)
 
         // Authorization 헤더 세팅
-        req.Header().Set("Authorization", "Bearer "+adminSAToken)
+        req.Header().Set("Authorization", "Bearer "+adminSATokenTest)
 
         // 다음 handler 호출
         return next(ctx, req)
