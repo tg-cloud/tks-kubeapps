@@ -56,9 +56,6 @@ func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSa
 		"metadata": map[string]interface{}{
 			"name":      saName,
 			"namespace": saNamespace,
-			"labels": map[string]interface{}{
-				"cluster": cluster,
-			},
 		},
 		"spec": map[string]interface{}{
 			"audiences":         []string{"kubernetes"},
@@ -79,8 +76,8 @@ func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSa
     }
     req.Header.Set("Content-Type", "application/json")
 
-	// 인증 헤더 추가, tokenRequest API 전용 SA Token
-    req.Header.Set("Authorization", "Bearer "+tokenRequestSaToken) 
+	// 'sa-token' 인증 헤더 추가, tokenRequest API 전용 SA Token
+    req.Header.Set("sa-token", tokenRequestSaToken) 
 
 	// 요청 전송
     client := &http.Client{}
