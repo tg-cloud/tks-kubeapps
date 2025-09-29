@@ -48,19 +48,6 @@ type saTokenInterceptor struct{
 
 // open-api-k8s API 호출로 Kubeapps admin sa token 발급받기
 func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSaToken string) (string, error) {
-	// url := fmt.Sprintf("http://%s/k8s/api/v1/clusters/platform.io/namespaces/%s/serviceaccounts/%s/token", openApiHost, saNamespace, saName)
-    // requestBody := map[string]interface{}{
-	// 	"apiVersion": "authentication.k8s.io/v1",
-	// 	"kind":       "TokenRequest",
-	// 	"metadata": map[string]interface{}{
-	// 		"name":      saName,
-	// 		"namespace": saNamespace,
-	// 	},
-	// 	"spec": map[string]interface{}{
-	// 		"audiences":         []string{"https://kubernetes.default.svc.platform.io"},
-	// 		"expirationSeconds": 3600,
-	// 	},
-	// }
 	url := fmt.Sprintf("http://%s/k8s/api/v1/clusters/%s/namespaces/%s/serviceaccounts/%s/token", openApiHost, cluster, saNamespace, saName)
 	requestBody := map[string]interface{}{
 		"apiVersion": "authentication.k8s.io/v1",
@@ -75,10 +62,11 @@ func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSa
 		},
 	}
 	
-	log.Infof("getSATokenFromAPI - url: %s", url)
-	bodyBytes, _ := json.Marshal(requestBody)
-	log.Infof("getSATokenFromAPI - requestBody: %s", string(bodyBytes))
-	log.Infof("getSATokenFromAPI - cluster: %s", cluster)
+	// 디버깅용 로그 출력 주석처리
+	// log.Infof("getSATokenFromAPI - url: %s", url)
+	// bodyBytes, _ := json.Marshal(requestBody)
+	// log.Infof("getSATokenFromAPI - requestBody: %s", string(bodyBytes))
+	// log.Infof("getSATokenFromAPI - cluster: %s", cluster)
 
 	// YAML 형식으로 변환
     bodyBytes, err := yaml.Marshal(requestBody)
@@ -123,10 +111,8 @@ func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSa
 		return "", err
 	}
 
-	// log.Infof("response: %s", response.Status.Token)
 	// 발급받은 토큰 반환
 	return response.Status.Token, nil
-
 }
 
 
@@ -135,9 +121,6 @@ func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSa
 // updated at: 250923
 // updated by: 이호형
 // Interceptor struct 방식으로 변경
-const adminSATokenTest = "eyJhbGciOiJSUzI1NiIsImtpZCI6ImplcktWSnRndDc3Y2l1VXUwSVk5SVBKMXBaMlRIdjRzanRkYTM5V3QxZTQifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJrdWJlYXBwcyIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VjcmV0Lm5hbWUiOiJrdWJlYXBwcy1hZG1pbi10b2tlbiIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50Lm5hbWUiOiJrdWJlYXBwcy1hZG1pbiIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50LnVpZCI6IjAwZTA4Zjc1LTYxYjUtNDUxMy1iOGNlLWU3YjlhYTc2MTIyMiIsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDprdWJlYXBwczprdWJlYXBwcy1hZG1pbiJ9.cTyPEiMF5tF7F_3PW9r5FoTqChHKIONS3GTwKlMCBcXu2ePRS54-5wnZebAQmpEvsWNoqU8K_qSFK_609B90St-K2bZTReQXLe10FigtDXURXmNaPiLnY-ItDccEVxUJ4wKDhAQ731U9_c_Xs4alghB2RfhMELo8P_6DGH92RK6eMtrELyMvayQ3b-HDzscNTaixJHAwf59_wHNR2xjibWZXvG_LK3sVo5r7p19crMASERH1QNjl7CSMBJLYgOtQc6817uGZ5RNLwlUgvHTfC7XtY18uLCcHhVcWY5oBRjs8PV0IGd4uE80y_-h8NXyhKaWAqislNn9ZlgqP36udww"
-
-// type saTokenInterceptor struct{}
 
 func (i *saTokenInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
     return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
@@ -161,7 +144,6 @@ func (i *saTokenInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc
         if cluster == "" {
             return nil, fmt.Errorf("cluster not found in request for method %s", method)
         }
-        log.Infof("cluster extracted from request: %s", cluster)
 
         // SA 토큰 가져오기
         adminSAToken, err := getSATokenFromAPI(
@@ -174,14 +156,9 @@ func (i *saTokenInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc
         if err != nil {
             return nil, fmt.Errorf("failed to get SA token: %v", err)
         }
-		log.Infof("adminSAToken: %s", adminSAToken)
-
-        // 하드코딩 Authorization 헤더 세팅
-        // req.Header().Set("Authorization", "Bearer "+adminSATokenTest)
 
 		// 가져온 SA로 헤더 세팅
 	    req.Header().Set("Authorization", "Bearer "+adminSAToken)
-
 
         // 다음 handler 호출
         return next(ctx, req)
