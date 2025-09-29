@@ -48,9 +48,22 @@ type saTokenInterceptor struct{
 
 // open-api-k8s API 호출로 Kubeapps admin sa token 발급받기
 func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSaToken string) (string, error) {
-    // url := fmt.Sprintf("http://%s/k8s/api/v1/clusters/%s/namespaces/%s/serviceaccounts/%s/token", openApiHost, cluster, saNamespace, saName)
+	// url := fmt.Sprintf("http://%s/k8s/api/v1/clusters/%s/namespaces/%s/serviceaccounts/%s/token", openApiHost, cluster, saNamespace, saName)
+	// requestBody := map[string]interface{}{
+	// 	"apiVersion": "authentication.k8s.io/v1",
+	// 	"kind":       "TokenRequest",
+	// 	"metadata": map[string]interface{}{
+	// 		"name":      saName,
+	// 		"namespace": saNamespace,
+	// 	},
+	// 	"spec": map[string]interface{}{
+	// 		"audiences":         []string{fmt.Sprintf("https://kubernetes.default.svc.%s", cluster)},
+	// 		"expirationSeconds": 3600,
+	// 	},
+	// }
+	log.Infof("getSATokenFromAPI-cluster: %s", cluster)
+	
 	url := fmt.Sprintf("http://%s/k8s/api/v1/clusters/platform.io/namespaces/%s/serviceaccounts/%s/token", openApiHost, saNamespace, saName)
-
     requestBody := map[string]interface{}{
 		"apiVersion": "authentication.k8s.io/v1",
 		"kind":       "TokenRequest",
@@ -107,7 +120,7 @@ func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSa
 		return "", err
 	}
 
-	log.Infof("response: %s", response.Status.Token)
+	// log.Infof("response: %s", response.Status.Token)
 	// 발급받은 토큰 반환
 	return response.Status.Token, nil
 
