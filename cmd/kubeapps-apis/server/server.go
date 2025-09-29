@@ -48,8 +48,8 @@ type saTokenInterceptor struct{
 
 // open-api-k8s API 호출로 Kubeapps admin sa token 발급받기
 func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSaToken string) (string, error) {
-	// url := fmt.Sprintf("http://%s/k8s/api/v1/clusters/%s/namespaces/%s/serviceaccounts/%s/token", openApiHost, cluster, saNamespace, saName)
-	// requestBody := map[string]interface{}{
+	// url := fmt.Sprintf("http://%s/k8s/api/v1/clusters/platform.io/namespaces/%s/serviceaccounts/%s/token", openApiHost, saNamespace, saName)
+    // requestBody := map[string]interface{}{
 	// 	"apiVersion": "authentication.k8s.io/v1",
 	// 	"kind":       "TokenRequest",
 	// 	"metadata": map[string]interface{}{
@@ -57,14 +57,12 @@ func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSa
 	// 		"namespace": saNamespace,
 	// 	},
 	// 	"spec": map[string]interface{}{
-	// 		"audiences":         []string{fmt.Sprintf("https://kubernetes.default.svc.%s", cluster)},
+	// 		"audiences":         []string{"https://kubernetes.default.svc.platform.io"},
 	// 		"expirationSeconds": 3600,
 	// 	},
 	// }
-	log.Infof("getSATokenFromAPI-cluster: %s", cluster)
-	
-	url := fmt.Sprintf("http://%s/k8s/api/v1/clusters/platform.io/namespaces/%s/serviceaccounts/%s/token", openApiHost, saNamespace, saName)
-    requestBody := map[string]interface{}{
+	url := fmt.Sprintf("http://%s/k8s/api/v1/clusters/%s/namespaces/%s/serviceaccounts/%s/token", openApiHost, cluster, saNamespace, saName)
+	requestBody := map[string]interface{}{
 		"apiVersion": "authentication.k8s.io/v1",
 		"kind":       "TokenRequest",
 		"metadata": map[string]interface{}{
@@ -72,10 +70,13 @@ func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSa
 			"namespace": saNamespace,
 		},
 		"spec": map[string]interface{}{
-			"audiences":         []string{"https://kubernetes.default.svc.platform.io"},
+			"audiences":         []string{fmt.Sprintf("https://kubernetes.default.svc.%s", cluster)},
 			"expirationSeconds": 3600,
 		},
 	}
+	log.Infof("getSATokenFromAPI - url: %s", url)
+	log.Infof("getSATokenFromAPI - requestBody: %s", string(bodyJSON))
+	log.Infof("getSATokenFromAPI - cluster: %s", cluster)
 
 	// YAML 형식으로 변환
     bodyBytes, err := yaml.Marshal(requestBody)
