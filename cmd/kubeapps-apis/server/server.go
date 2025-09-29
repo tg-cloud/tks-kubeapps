@@ -74,8 +74,10 @@ func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSa
 			"expirationSeconds": 3600,
 		},
 	}
+	
 	log.Infof("getSATokenFromAPI - url: %s", url)
-	log.Infof("getSATokenFromAPI - requestBody: %s", string(bodyJSON))
+	bodyBytes, _ := json.Marshal(requestBody)
+	log.Infof("getSATokenFromAPI - requestBody: %s", string(bodyBytes))
 	log.Infof("getSATokenFromAPI - cluster: %s", cluster)
 
 	// YAML 형식으로 변환
