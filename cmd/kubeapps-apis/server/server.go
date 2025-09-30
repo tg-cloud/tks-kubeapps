@@ -36,14 +36,28 @@ import (
     "encoding/json"
 	"os"
 	"gopkg.in/yaml.v3"
+	"github.com/redis/go-redis/v9"
 )
 
-// 환경변수
-type saTokenInterceptor struct{
-    openApiHost  string
-    saNamespace  string
-    saName       string
-	tokenRequestSaToken string
+// 환경변수와 레디스 클라이언트를 구조체로 정의
+type saTokenInterceptor struct {
+    openApiHost        string
+    saNamespace        string
+    saName             string
+    tokenRequestSaToken string
+	redisAddress string
+    redisPassword string
+    redisDB      int
+    rdb                *redis.Client
+}
+
+// 레디스 초기화
+func (i *saTokenInterceptor) initRedis() {
+    i.rdb = redis.NewClient(&redis.Options{
+        Addr:     i.redisAddress,
+        Password: i.redisPassword,
+        DB:       i.redisDB,
+    })
 }
 
 // open-api-k8s API 호출로 Kubeapps admin sa token 발급받기
@@ -115,6 +129,30 @@ func getSATokenFromAPI(openApiHost, cluster, saNamespace, saName, tokenRequestSa
 	return response.Status.Token, nil
 }
 
+// 레디스에서 먼저 sa token을 가져오고 없으면 open-api-k8s에서 발급
+// 구조체 메서드
+func (i *saTokenInterceptor) getSAToken(cluster string) (string, error) {
+    ctx := context.Background()
+    key := fmt.Sprintf("kubeapps:sa-token:%s:%s:%s", cluster, i.saNamespace, i.saName)
+
+    // 1. 캐시 확인
+    token, err := i.rdb.Get(ctx, key).Result()
+    if err == nil {
+        return token, nil
+    }
+
+    // 2. 없으면 새로 발급
+    token, err = getSATokenFromAPI(i.openApiHost, cluster, i.saNamespace, i.saName, i.tokenRequestSaToken)
+    if err != nil {
+        return "", err
+    }
+
+    // 3. Redis에 저장 (만료시간은 발급 유효기간보다 살짝 짧게)
+    i.rdb.Set(ctx, key, token, 55*time.Minute)
+
+    return token, nil
+}
+
 
 
 // sa token 인터셉터 추가
@@ -146,12 +184,8 @@ func (i *saTokenInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc
         }
 
         // SA 토큰 가져오기
-        adminSAToken, err := getSATokenFromAPI(
-            i.openApiHost,
+        adminSAToken, err := i.getSAToken(
             cluster,
-            i.saNamespace,
-            i.saName,
-            i.tokenRequestSaToken,
         )
         if err != nil {
             return nil, fmt.Errorf("failed to get SA token: %v", err)
@@ -295,14 +329,29 @@ func registerPackagesServiceServer(mux *http.ServeMux, pluginsServer *pluginsv1a
     // 이후 interceptor가 요청마다 getSATokenFromAPI를 호출해 최신 SA 토큰을 가져옴
     // updated at: 250923
 	// updated by: 이호형
+
+	interceptor := &saTokenInterceptor{
+		openApiHost: os.Getenv("OPENAPI_HOST"),
+		saNamespace: os.Getenv("KUBEAPPS_SA_NAMESPACE"),
+		saName:      os.Getenv("KUBEAPPS_SA_NAME"),
+		tokenRequestSaToken: os.Getenv("TOKENREQUEST_SA_TOKEN"),
+		redisAddress:      os.Getenv("REDIS_ADDRESS"),
+		redisPassword:     os.Getenv("REDIS_PASSWORD"),
+		redisDB:           func() int {
+			db := 0
+			if v := os.Getenv("REDIS_DB"); v != "" {
+				fmt.Sscanf(v, "%d", &db)
+			}
+			return db
+		}(),
+	}
+
+	// Redis 초기화
+	interceptor.initRedis()
+
 	mux.Handle(packagesConnect.NewPackagesServiceHandler(
 		packagesServer,
-		connect.WithInterceptors(&saTokenInterceptor{
-			openApiHost: os.Getenv("OPENAPI_HOST"),
-			saNamespace: os.Getenv("KUBEAPPS_SA_NAMESPACE"),
-			saName:      os.Getenv("KUBEAPPS_SA_NAME"),
-			tokenRequestSaToken: os.Getenv("TOKENREQUEST_SA_TOKEN"),
-		}),
+		connect.WithInterceptors(interceptor),
 	))
 
 	err = packagesGRPCv1alpha1.RegisterPackagesServiceHandlerFromEndpoint(gwArgs.Ctx, gwArgs.Mux, gwArgs.Addr, gwArgs.DialOptions)
