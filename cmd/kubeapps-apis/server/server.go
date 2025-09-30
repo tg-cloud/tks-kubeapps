@@ -45,19 +45,30 @@ type saTokenInterceptor struct {
     saNamespace        string
     saName             string
     tokenRequestSaToken string
-	redisAddress string
-    redisPassword string
-    redisDB      int
+
+	// Redis Sentinel 환경변수
+	redisSentinelAddrs []string
+	redisMasterName    string
+	redisPassword      string
+	redisDB            int
+
     rdb                *redis.Client
 }
 
-// 레디스 초기화
+// 레디스 초기화 (Sentinel 모드)
 func (i *saTokenInterceptor) initRedis() {
-    i.rdb = redis.NewClient(&redis.Options{
-        Addr:     i.redisAddress,
-        Password: i.redisPassword,
-        DB:       i.redisDB,
-    })
+	i.rdb = redis.NewFailoverClient(&redis.FailoverOptions{
+		MasterName:    i.redisMasterName,
+		SentinelAddrs: i.redisSentinelAddrs,
+		Password:      i.redisPassword,
+		DB:            i.redisDB,
+	})
+
+	// 연결 확인
+	ctx := context.Background()
+	if err := i.rdb.Ping(ctx).Err(); err != nil {
+		panic(fmt.Sprintf("failed to connect to redis sentinel: %v", err))
+	}
 }
 
 // open-api-k8s API 호출로 Kubeapps admin sa token 발급받기
@@ -140,9 +151,11 @@ func (i *saTokenInterceptor) getSAToken(cluster string) (string, error) {
     if err == nil {
         return token, nil
     }
+	log.Infof("getSAToken redis token: %s", token)
 
     // 2. 없으면 새로 발급
     token, err = getSATokenFromAPI(i.openApiHost, cluster, i.saNamespace, i.saName, i.tokenRequestSaToken)
+	log.Infof("getSAToken getSATokenFromAPI token: %s", token)
     if err != nil {
         return "", err
     }
@@ -335,9 +348,18 @@ func registerPackagesServiceServer(mux *http.ServeMux, pluginsServer *pluginsv1a
 		saNamespace: os.Getenv("KUBEAPPS_SA_NAMESPACE"),
 		saName:      os.Getenv("KUBEAPPS_SA_NAME"),
 		tokenRequestSaToken: os.Getenv("TOKENREQUEST_SA_TOKEN"),
-		redisAddress:      os.Getenv("REDIS_ADDRESS"),
-		redisPassword:     os.Getenv("REDIS_PASSWORD"),
-		redisDB:           func() int {
+
+		// Sentinel 관련 env
+		redisSentinelAddrs: func() []string {
+			addrs := os.Getenv("REDIS_SENTINEL_ADDRS")
+			if addrs == "" {
+				return []string{}
+			}
+			return strings.Split(addrs, ",")
+		}(),
+		redisMasterName: os.Getenv("REDIS_MASTER_NAME"),
+		redisPassword:   os.Getenv("REDIS_PASSWORD"),
+		redisDB: func() int {
 			db := 0
 			if v := os.Getenv("REDIS_DB"); v != "" {
 				fmt.Sscanf(v, "%d", &db)
