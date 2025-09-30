@@ -57,18 +57,19 @@ type saTokenInterceptor struct {
 
 // 레디스 초기화 (Sentinel 모드)
 func (i *saTokenInterceptor) initRedis() {
-	sentinels := strings.Split(os.Getenv("REDIS_SENTINEL_ADDRS"), ",")
-	log.Infof("initRedis - sentinels: %s", sentinels)
+	if len(i.redisSentinelAddrs) == 0 {
+        log.Warning("No Redis Sentinel addresses provided; skipping Redis initialization")
+        return
+    }
+
+	log.Infof("initRedis - i.redisSentinelAddrs: %s", i.redisSentinelAddrs)
+
 	i.rdb = redis.NewFailoverClient(&redis.FailoverOptions{
-		MasterName:    os.Getenv("REDIS_MASTER_NAME"),
-		SentinelAddrs: sentinels,
-		Password:      os.Getenv("REDIS_PASSWORD"),
-		DB:            func() int {
-			db := 0
-			fmt.Sscanf(os.Getenv("REDIS_DB"), "%d", &db)
-			return db
-		}(),
-	})
+        MasterName:    i.redisMasterName,
+        SentinelAddrs: i.redisSentinelAddrs,
+        Password:      i.redisPassword,
+        DB:            i.redisDB,
+    })
 
 	// 연결 확인
 	ctx := context.Background()
