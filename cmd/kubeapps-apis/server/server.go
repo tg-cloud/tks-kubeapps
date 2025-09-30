@@ -36,7 +36,7 @@ import (
     "encoding/json"
 	"os"
 	"gopkg.in/yaml.v3"
-	"github.com/redis/go-redis/v9"
+	"github.com/go-redis/redis/v8"
 )
 
 // 환경변수와 레디스 클라이언트를 구조체로 정의
