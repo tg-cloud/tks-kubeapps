@@ -41,6 +41,7 @@ import (
 
 // 환경변수와 레디스 클라이언트를 구조체로 정의
 type saTokenInterceptor struct {
+	// open-api-k8s sa token post api
     openApiHost        string
     saNamespace        string
     saName             string
@@ -63,12 +64,14 @@ func (i *saTokenInterceptor) initRedis() {
     }
 
 	log.Infof("initRedis - i.redisSentinelAddrs: %s", i.redisSentinelAddrs)
+	log.Infof("initRedis - i.redisPassword: %s", i.redisPassword)
 
 	i.rdb = redis.NewFailoverClient(&redis.FailoverOptions{
-        MasterName:    i.redisMasterName,
-        SentinelAddrs: i.redisSentinelAddrs,
-        Password:      i.redisPassword,
-        DB:            i.redisDB,
+        MasterName:       i.redisMasterName,
+        SentinelAddrs:    i.redisSentinelAddrs, // Master 인증용
+		SentinelPassword: i.redisPassword,  // Sentinel 인증용
+        Password:         i.redisPassword,
+        DB:               i.redisDB,
     })
 
 	// 연결 확인
