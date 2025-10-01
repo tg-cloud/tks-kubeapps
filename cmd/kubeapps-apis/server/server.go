@@ -165,14 +165,17 @@ func (i *saTokenInterceptor) getSAToken(cluster string) (string, error) {
 
     // 2. 없으면 새로 발급
     token, err = getSATokenFromAPI(i.openApiHost, cluster, i.saNamespace, i.saName, i.tokenRequestSaToken)
-	log.Infof("getSAToken getSATokenFromAPI token: %s", token)
     if err != nil {
         return "", err
     }
+	log.Infof("getSAToken key=%s (cluster=%s, ns=%s, sa=%s)", key, cluster, i.saNamespace, i.saName)
 
     // 3. Redis에 저장 (만료시간은 발급 유효기간보다 살짝 짧게)
-    i.rdb.Set(ctx, key, token, 55*time.Minute)
-
+    if err := i.rdb.Set(ctx, key, token, 55*time.Minute).Err(); err != nil {
+		log.Errorf("Redis SET failed for key=%s: %v", key, err)
+	} else {
+		log.Infof("Redis SET success key=%s", key)
+	}
     return token, nil
 }
 
