@@ -158,10 +158,14 @@ func (i *saTokenInterceptor) getSAToken(cluster string) (string, error) {
 
     // 1. 캐시 확인
     token, err := i.rdb.Get(ctx, key).Result()
-    if err == nil {
+     if err == nil {
+        log.Infof("Redis GET success key=%s token(len=%d)", key, len(token))
         return token, nil
+    } else if err == redis.Nil {
+        log.Infof("Redis GET miss key=%s (not found)", key)
+    } else {
+        log.Errorf("Redis GET failed key=%s: %v", key, err)
     }
-	log.Infof("getSAToken redis token: %s", token)
 
     // 2. 없으면 새로 발급
     token, err = getSATokenFromAPI(i.openApiHost, cluster, i.saNamespace, i.saName, i.tokenRequestSaToken)
